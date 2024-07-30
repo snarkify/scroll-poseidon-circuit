@@ -3,6 +3,7 @@
 use ff::PrimeField;
 use halo2_proofs::circuit::AssignedCell;
 use halo2_proofs::plonk::Fixed;
+use itertools::Itertools;
 use log;
 use std::time::Instant;
 
@@ -20,7 +21,7 @@ mod chip_long {
 #[cfg(feature = "short")]
 mod chip_short {
     use super::{SpongeChip, SpongeConfig};
-    use crate::poseidon::{SeptidonChip};
+    use crate::poseidon::SeptidonChip;
     /// The configuration of the Poseidon hash chip.
     pub type PoseidonHashConfig<F> = SpongeConfig<F, SeptidonChip>;
     /// The Poseidon hash chip.
@@ -566,7 +567,7 @@ where
     fn fill_hash_tbl_body_partial(
         &self,
         region: &mut Region<'_, F>,
-        data: &[((Option<&[F; 2]>, Option<&u64>), (Option<&F>, Option<&F>))],
+        data: &[(Option<&[F; 2]>, Option<&u64>, Option<&F>, Option<&F>)],
         is_first_pass: &mut bool,
         is_last_sub_region: bool,
     ) -> Result<PermutedStatePair<PC::Word>, Error> {
@@ -593,7 +594,7 @@ where
         let mut process_start = 0;
         let mut state = [F::ZERO; 3];
 
-        for (i, ((inp, control), (domain, check))) in data.iter().enumerate() {
+        for (i, (inp, control, domain, check)) in data.iter().enumerate() {
             let control = control.copied().unwrap_or(0u64);
             let domain = domain.copied().unwrap_or(F::ZERO);
             let offset = i;
@@ -809,17 +810,16 @@ where
             let min_len = self.calcs / chunks_count + 1;
             let mut chunk_len = 0;
 
-            let data: Vec<((Option<&[F; 2]>, Option<&u64>), (Option<&F>, Option<&F>))> = inputs_i
-                .zip(controls_i)
-                .zip(domains_i.zip(checks_i))
-                .collect();
+            let data: Vec<(Option<&[F; 2]>, Option<&u64>, Option<&F>, Option<&F>)> =
+                itertools::multizip((inputs_i, controls_i, domains_i, checks_i)).collect();
 
             // Split `data` into chunks and ensure each chunks is longer thant `min_len` and ends
             // with a new sponge.
             //
             // Each chunk would be processed in a separate thread.
             let assignments = data
-                .group_by(|((_, control), _), _| {
+                .into_iter()
+                .chunk_by(|(_, control, _, _)| {
                     chunk_len += 1;
                     if control.copied().unwrap_or(0) > STEP as u64 || chunk_len < min_len {
                         true
@@ -828,7 +828,10 @@ where
                         false
                     }
                 })
+                .into_iter()
+                .map(|(_, v)| v.collect::<Box<[_]>>())
                 .collect::<Vec<_>>();
+
             let assignments_len = assignments.len();
             let assignments = assignments
                 .into_iter()
@@ -839,7 +842,7 @@ where
                     move |mut region: Region<'_, F>| -> Result<PermutedStatePair<PC::Word>, Error> {
                         self.fill_hash_tbl_body_partial(
                             &mut region,
-                            data,
+                            &data,
                             &mut is_first_pass,
                             is_last_sub_region,
                         )

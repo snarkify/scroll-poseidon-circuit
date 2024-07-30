@@ -1,11 +1,12 @@
 use halo2curves::{group::ff::PrimeField, pasta};
 pub use pasta::pallas;
 pub use pasta::Fp;
+
 pub mod fp;
 pub mod test_vectors;
 
-use crate::poseidon::primitives::p128pow5t3::P128Pow5T3Constants;
-use crate::poseidon::primitives::Mds;
+use super::Mds;
+use super::P128Pow5T3Constants;
 
 impl P128Pow5T3Constants for Fp {
     fn round_constants() -> Vec<[Self; 3]> {
