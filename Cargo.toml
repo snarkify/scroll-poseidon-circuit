@@ -25,4 +25,7 @@ opt-level = 3
 debug-assertions = true
 
 [patch."https://github.com/privacy-scaling-explorations/halo2.git"]
-halo2_proofs = { git = "https://github.com/scroll-tech/halo2.git", branch = "v1.0" }
+halo2_proofs = { git = "https://github.com/snarkify/halo2", branch = "snarkify/dev" }
+
+[patch.crates-io]
+halo2curves = { git = 'https://github.com/privacy-scaling-explorations/halo2curves', tag = "0.3.3" }
